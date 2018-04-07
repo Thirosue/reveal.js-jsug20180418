@@ -41,37 +41,255 @@
 * AWS Solutions Architect - Associate
 
 ---
-### 前提
+### 今日しない話
+
+* すごい話
+
+---
+### 今日する話
+
+* 実際の実例
+* これから試そうとしている話
+
+---
+### 題材
+
+* 各環境（開発/本番）での設定を分ける話
+* データベースの接続先や認証情報など
+
+---
+### バックグラウンド
 
 * オンプロミス運用（仮想サーバ）がメイン
 * コンテナの本番ワークロードはなし
 * ビルドはGradleメイン
 
 ---
-### ページ１
-- - -
-上の破線のようなものは水平線
-こんな感じでガシガシ書いていきます
+### ある現場のビルド方法①
 
-**次は２ページ目**
+* スクリプト（Ansible）でプロパティ上書き
+* ビルドは手作業 or Jenkinsスクリプト
 
 ---
-### ページ２
-- - -
-1. 数字付きのリスト
-1. 番号はどうでもいい
 
->>>
-### ページ２−１
-ページ２から垂直に下に遷移する  
-垂直遷移には補助的な説明を
+* 環境ごとに準備した変数(stg.yml|prod.yml)を設定テンプレートに上書き
 
-- 普通のリスト
-- 簡潔にね
+```
+# profileでstg/prodを指定
+$ ansible-playbook -i hosts/${profile} tasks/hoge/build.yml
+```
 
->>>
-### ページ２−２
-どんどん書いていく
+---
+### メリット
+* 言語に依存しない
+
+<br/>
+
+### デメリット
+* typo or Jenkins管理作業
+
+---
+### ある現場のビルド方法②
+
+* スクリプト（gradle）でプロパティ上書き
+* ビルドは手作業 or Jenkinsスクリプト
+
+---
+
+* 環境ごとに準備したファイルで上書き
+
+```
+$ ./gradlew installDist -Pprofile=${profile}
+```
+
+```
+copy{
+	from "conf/${profile}.application.properties"
+	into "src/main/resources"
+	rename "${profile}\\.", ""
+}
+```
+
+---
+### メリット
+* シンプル
+
+<br/>
+
+### デメリット
+* typo or Jenkins管理作業
+
+---
+## ようやく
+## Springプロジェクトへ
+
+---
+### ある現場のビルド方法③
+
+* アプリ起動スクリプトでprofileを読み込む
+
+---
+
+* 各環境に設定ファイルを永続化
+
+```
+#!/bin/bash
+
+# 環境設定を読み込む
+. /path/to/directory/conf.sh
+.
+(中略)
+.
+java -classpath "$CLASSPATH" com.sample.Applicaion
+```
+
+```
+$ cat /path/to/directory/conf.sh
+SPRING_PROFILES_ACTIVE="production"
+LOG_DIR="/path/to/log"
+.
+.
+以下続く
+```
+
+---
+### メリット
+* conf.shに修正がない場合、ビルドが簡素化
+
+<br/>
+
+### デメリット
+* conf.shが変わるとリリースミスの可能性
+
+---
+### ある現場のビルド方法④
+
+* 実行可能jar生成
+* リリースはjarのみでOK
+
+---
+
+* 各環境に設定ファイルを永続化
+* SpringBootの実行可能jarのスクリプトを活用
+
+```
+# 実行可能jarを転送するだけ
+$ ./gradlew clean build
+$ scp sample-hoge.jar user@targethost:/path/to/approot/
+```
+
+```
+$ ls /path/to/approot/
+sample-hoge.jar  sample-hoge.conf
+$ cat /path/to/approot/sample-hoge.conf
+export JAVA_OPTS="-Dspring.profiles.active=prod"
+```
+
+---
+### メリット
+* デプロイミスほぼなし
+
+<br/>
+
+### デメリット
+* なし
+
+---
+
+### Spring Boot Reference Guide
+
+<div style="text-align:center;">
+  <img src="https://thirosue.github.io/reveal.js-jsug20180418/image/systemd.png" style="width:1000%;"/>
+</div>
+
+---
+## 以降実例ではありません
+
+---
+### コンテナ時代は？
+
+<div style="text-align:center;">
+  <img src="https://thirosue.github.io/reveal.js-jsug20180418/image/container.png" style="width:80%;"/>
+</div>
+
+---
+## Kubenetes
+
+### ConfigMap
+
+設定ファイル、環境変数等をコンテナと分離
+
+### Sercret
+
+ConfigMapと概念は同じ、要暗号化のパスワードなどを管理
+
+---
+
+* 環境変数をコンテナにバインド
+
+```
+spec:
+  containers:
+  - name: springbootdemo
+    image: mirrored1976/springbootdemo
+    env:
+    - name: MYSQL_DB_USER
+        valueFrom:
+        secretKeyRef:
+            name: db-user-pass
+            key: username
+```
+
+---
+## Cloud Fonundry
+
+### Service Broker  
+
+1. アプリをpush
+1. DB生成
+1. アプリとDBをバインド
+
+```
+$ cf push my-app #(1)
+$ cf service mydb #(2)
+$ cf bind-service my-app mydb #(3)
+```
+
+Kubenetes同様、環境変数を外部よりバインド
+
+---
+
+### blog.ik.am
+
+<div style="text-align:center;">
+  <img src="https://thirosue.github.io/reveal.js-jsug20180418/image/makiblog.png" style="width:1000%;"/>
+</div>
+
+引用元: https://blog.ik.am/entries/497
+
+---
+## AWS ECS
+
+### パラメータストアとIAM利用
+
+<div style="text-align:center;">
+  <img src="https://thirosue.github.io/reveal.js-jsug20180418/image/ecs.png" style="width:1000%;"/>
+</div>
+
+引用元: https://aws.amazon.com/jp/blogs/news/managing-secrets-for-amazon-ecs-applications-using-parameter-store-and-iam-roles-for-tasks/
+
+---
+### まとめ
+
+* リファレンスは読みましょう
+* デプロイはできるだけ簡素化する
+* コンテナ基盤ではよりスマートに対応
+
+---
+
+## ご静聴ありがとう
+## ございました
+
 					</script>
 				</section>
 			</div>
