@@ -79,6 +79,34 @@
 $ ansible-playbook -i hosts/${profile} tasks/hoge/build.yml
 ```
 
+>>>
+
+* stg.yml
+
+```
+# database.yml（rails）
+rails_database: postgres
+rails_username: postgres
+rails_host: postgres-host
+rails_connection_pool_count : 5
+```
+
+>>>
+
+* template(database.yml.template)
+
+```
+production:
+  adapter: postgresql
+  encoding: unicode
+  database: {{ rails_database }}
+  pool: {{ rails_connection_pool_count }}
+  username: {{ rails_username }}
+  password:
+  host: {{ rails_host }}
+  port: 5432
+```
+
 ---
 ### メリット
 * 言語に依存しない
@@ -108,6 +136,18 @@ copy{
 	into "src/main/resources"
 	rename "${profile}\\.", ""
 }
+```
+
+>>>
+
+* 環境ごとにprofileを用意する
+
+```
+$ ls -ltr /path/to/root/conf/
+total 40
+-rw-r--r--  1 hirosue  staff  1224  4  6 18:17 stg.application.properties
+-rw-r--r--  1 hirosue  staff   931  4  6 18:17 prod.application.properties
+-rw-r--r--  1 hirosue  staff   931  4  6 18:17 dev.application.properties
 ```
 
 ---
