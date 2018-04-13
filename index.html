@@ -253,6 +253,30 @@ export JAVA_OPTS="-Dspring.profiles.active=prod"
 </div>
 
 ---
+## コンテナ化自体は容易
+
+---
+* Dockerfile
+
+```
+FROM openjdk:8-jdk-alpine
+VOLUME /tmp
+ARG JAR_FILE
+ADD ${JAR_FILE} app.jar
+ENTRYPOINT ["java","-Djava.security.egd=file:/dev/./urandom","-jar","/app.jar"]
+```
+
+---
+* Running Use Profile
+
+```
+$ docker run -e "SPRING_PROFILES_ACTIVE=prod" -p 8080:8080 -t springio/gs-spring-boot-docker
+```
+
+---
+## 本番ワークロードでは？
+
+---
 ## Kubenetes
 
 ### ConfigMap
@@ -278,6 +302,20 @@ spec:
         secretKeyRef:
             name: db-user-pass
             key: username
+```
+
+>>> 
+
+* 環境変数をpropertiesに記載
+
+```
+spring:
+  datasource:
+    platform: mysql
+    driver-class-name: com.mysql.jdbc.Driver
+    url: jdbc:mysql://${MYSQL_DB_HOST}:${MYSQL_DB_PORT}/sample
+    username: ${MYSQL_DB_USER}
+    password: ${MYSQL_DB_PASSWORD}
 ```
 
 ---
