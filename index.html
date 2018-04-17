@@ -54,8 +54,8 @@
 ---
 ### 題材
 
-* 各環境（開発/本番）での設定を分ける話
-* データベースの接続先や認証情報など
+#### データベースの接続先や認証情報を
+#### 各環境（開発/本番）での設定を分ける話
 
 ---
 ### バックグラウンド
@@ -63,21 +63,23 @@
 * オンプロミス運用（仮想サーバ）がメイン
 * コンテナの本番ワークロードはなし
 * ビルドはGradleメイン
+* ネットワーク構成がネックでCIツール使いずらい
+
+---
+## 4つの実際の事例を紹介
+
+---
+## 最初の2つはSpring Prj
+## ではありません
 
 ---
 ### ある現場のビルド方法①
 
 * スクリプト（Ansible）でプロパティ上書き
-* ビルドは手作業 or Jenkinsスクリプト
 
 ---
 
 * 環境ごとに準備した変数(stg.yml|prod.yml)を設定テンプレートに上書き
-
-```
-# profileでstg/prodを指定
-$ ansible-playbook -i hosts/${profile} tasks/hoge/build.yml
-```
 
 >>>
 
@@ -107,6 +109,15 @@ production:
   port: 5432
 ```
 
+>>>
+
+* build
+
+```
+# profileでstg/prodを指定
+$ ansible-playbook -i hosts/${profile} tasks/hoge/build.yml
+```
+
 ---
 ### メリット
 * 言語に依存しない
@@ -114,21 +125,28 @@ production:
 <br/>
 
 ### デメリット
-* typo or Jenkins管理作業
+* typo等の単純リリース事故
 
 ---
 ### ある現場のビルド方法②
 
 * スクリプト（gradle）でプロパティ上書き
-* ビルドは手作業 or Jenkinsスクリプト
 
 ---
 
-* 環境ごとに準備したファイルで上書き
+* 環境ごとにprofileを準備
 
 ```
-$ ./gradlew installDist -Pprofile=${profile}
+$ ls -ltr /path/to/root/conf/
+total 40
+-rw-r--r--  1 hirosue  staff  1224  4  6 18:17 stg.application.properties
+-rw-r--r--  1 hirosue  staff   931  4  6 18:17 prod.application.properties
+-rw-r--r--  1 hirosue  staff   931  4  6 18:17 dev.application.properties
 ```
+
+>>>
+
+* build.gradle
 
 ```
 copy{
@@ -140,14 +158,10 @@ copy{
 
 >>>
 
-* 環境ごとにprofileを用意する
+* build
 
 ```
-$ ls -ltr /path/to/root/conf/
-total 40
--rw-r--r--  1 hirosue  staff  1224  4  6 18:17 stg.application.properties
--rw-r--r--  1 hirosue  staff   931  4  6 18:17 prod.application.properties
--rw-r--r--  1 hirosue  staff   931  4  6 18:17 dev.application.properties
+$ ./gradlew installDist -Pprofile=${profile}
 ```
 
 ---
@@ -157,7 +171,7 @@ total 40
 <br/>
 
 ### デメリット
-* typo or Jenkins管理作業
+* typo等の単純リリース事故
 
 ---
 ## ようやく
@@ -173,6 +187,19 @@ total 40
 * 各環境に設定ファイルを永続化
 
 ```
+$ cat /path/to/directory/conf.sh
+SPRING_PROFILES_ACTIVE="production"
+LOG_DIR="/path/to/log"
+.
+.
+以下続く
+```
+
+>>>
+
+* 起動スクリプトで読み込み
+
+```
 #!/bin/bash
 
 # 環境設定を読み込む
@@ -183,13 +210,12 @@ total 40
 java -classpath "$CLASSPATH" com.sample.Applicaion
 ```
 
+>>>
+
+* build
+
 ```
-$ cat /path/to/directory/conf.sh
-SPRING_PROFILES_ACTIVE="production"
-LOG_DIR="/path/to/log"
-.
-.
-以下続く
+$ ./gradlew -Penv=${profile} distZip
 ```
 
 ---
@@ -199,35 +225,55 @@ LOG_DIR="/path/to/log"
 <br/>
 
 ### デメリット
-* conf.shが変わるとリリースミスの可能性
+* conf.shが変更によるリリース事故
 
 ---
 ### ある現場のビルド方法④
 
 * 実行可能jar生成
-* リリースはjarのcopyのみ
 
 ---
 
-* 各環境に設定ファイルを永続化
-* SpringBootの実行可能jarのスクリプトを活用
+* build.gradle
 
 ```
-# 実行可能jarを転送するだけ
-$ ./gradlew clean build
-$ scp sample-hoge.jar user@targethost:/path/to/approot/
+springBoot {
+    executable = true
+}
 ```
+
+>>>
+
+* 実行可能jarスクリプトを活用し
+* アプリケーションルートにconfファイルを永続化
 
 ```
 $ ls /path/to/approot/
-sample-hoge.jar  sample-hoge.conf
-$ cat /path/to/approot/sample-hoge.conf
+app.jar  app.conf
+$ cat /path/to/approot/app.conf
 export JAVA_OPTS="-Dspring.profiles.active=prod"
+```
+
+>>>
+
+* build
+
+```
+$ ./gradlew build
+```
+
+>>>
+
+* （補足）release
+
+```
+$ scp app.jar user@targethost:/path/to/approot/
 ```
 
 ---
 ### メリット
-* デプロイミスほぼなし
+* シンプルでデプロイミスほぼなし
+* 起動スクリプトも不要
 
 <br/>
 
